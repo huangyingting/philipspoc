@@ -75,32 +75,22 @@ jobs:
         allow-empty-commit: true
         branch-name: export/${{ github.event.inputs.solution_name }}-${{ github.run_number }}
 
-    - name: Create or reuse PR
+    - name: Create PR
       uses: actions/github-script@v7
       env:
-        # Prefer the action's output if provided; fall back to the deterministic name we set
         BRANCH_NAME: ${{ steps.branch_solution.outputs.branch-name }}
         SOLUTION_NAME: ${{ github.event.inputs.solution_name }}
         BASE_BRANCH: main
       with:
         github-token: ${{ secrets.GITHUB_TOKEN }}
         script: |
-          const core = require('@actions/core');
           const branch = process.env.BRANCH_NAME;
           const base = process.env.BASE_BRANCH || 'main';
           const title = `Power Platform export: ${process.env.SOLUTION_NAME}`;
           const headQualified = `${context.repo.owner}:${branch}`;
 
-          // Check if a PR from this branch already exists
-          const { data: existing } = await github.rest.pulls.list({
-            owner: context.repo.owner,
-            repo: context.repo.repo,
-            state: 'open',
-            head: headQualified
-          });
-
-          if (existing.length) {
-            core.info(`PR already exists: ${existing[0].html_url}`);
+          if (!branch) {
+            core.setFailed('Branch name not found.');
             return;
           }
 

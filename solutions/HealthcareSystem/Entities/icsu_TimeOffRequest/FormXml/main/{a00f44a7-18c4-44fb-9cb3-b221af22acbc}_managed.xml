@@ -22,7 +22,7 @@
                     <row>
                       <cell id="{25c51231-c932-4095-8e30-063813e69d47}">
                         <labels>
-                          <label description="Request Name" languagecode="1033" />
+                          <label description="" languagecode="1033" />
                         </labels>
                         <control id="icsu_requestname" classid="{4273EDBD-AC1D-40d3-9FB2-095C621B552D}" datafieldname="icsu_requestname" />
                       </cell>
@@ -30,7 +30,7 @@
                     <row>
                       <cell id="{eff11ec4-3be9-4ad0-b0d3-4a66fb031a44}">
                         <labels>
-                          <label description="Owner" languagecode="1033" />
+                          <label description="" languagecode="1033" />
                         </labels>
                         <control id="ownerid" classid="{270BD3DB-D9AF-4782-9025-509E298DEC0A}" datafieldname="ownerid" />
                       </cell>
@@ -38,7 +38,7 @@
                     <row>
                       <cell id="{a2205056-9b29-4c92-9979-85a6226dc64a}">
                         <labels>
-                          <label description="Employee Name" languagecode="1033" />
+                          <label description="" languagecode="1033" />
                         </labels>
                         <control id="icsu_employeename" classid="{4273edbd-ac1d-40d3-9fb2-095c621b552d}" datafieldname="icsu_employeename" />
                       </cell>
@@ -46,7 +46,7 @@
                     <row>
                       <cell id="{1e0e5366-f083-4c2d-bfcb-3206a42bf5a3}">
                         <labels>
-                          <label description="Start Date" languagecode="1033" />
+                          <label description="" languagecode="1033" />
                         </labels>
                         <control id="icsu_startdate" classid="{5b773807-9fb2-42db-97c3-7a91eff8adff}" datafieldname="icsu_startdate" />
                       </cell>
@@ -54,7 +54,7 @@
                     <row>
                       <cell id="{99723d0b-ad82-4277-9eda-749c3118e9b9}">
                         <labels>
-                          <label description="End Date" languagecode="1033" />
+                          <label description="" languagecode="1033" />
                         </labels>
                         <control id="icsu_enddate" classid="{5b773807-9fb2-42db-97c3-7a91eff8adff}" datafieldname="icsu_enddate" />
                       </cell>

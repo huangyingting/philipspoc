@@ -41,19 +41,19 @@ jobs:
     - name: Who Am I
       uses: microsoft/powerplatform-actions/who-am-i@v1
       with:
-        environment-url: ${{secret.POWERPLATFORM_URL}}
-        app-id: ${{secret.CLIENT_ID}}
-        client-secret: ${{ secret.CLIENT_SECRET }}
-        tenant-id: ${{secret.TENANT_ID}}
+        environment-url: ${{secrets.POWERPLATFORM_URL}}
+        app-id: ${{secrets.CLIENT_ID}}
+        client-secret: ${{ secrets.CLIENT_SECRET }}
+        tenant-id: ${{secrets.TENANT_ID}}
 
 
     - name: Export Solution
       uses: microsoft/powerplatform-actions/export-solution@v1
       with:
-        environment-url: ${{secret.POWERPLATFORM_URL}}
-        app-id: ${{secret.CLIENT_ID}}
+        environment-url: ${{secrets.POWERPLATFORM_URL}}
+        app-id: ${{secrets.CLIENT_ID}}
         client-secret: ${{ secrets.CLIENT_SECRET }}
-        tenant-id: ${{secret.TENANT_ID}}
+        tenant-id: ${{secrets.TENANT_ID}}
         solution-name: ${{ github.event.inputs.solution_name }}
         solution-output-file: ${{ github.event.inputs.solution_exported_folder}}/${{ github.event.inputs.solution_name }}.zip
 

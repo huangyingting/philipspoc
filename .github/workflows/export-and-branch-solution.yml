@@ -73,12 +73,12 @@ jobs:
         solution-target-folder: ${{ github.event.inputs.solution_target_folder}}/${{ github.event.inputs.solution_name }}
         repo-token: ${{ secrets.GITHUB_TOKEN }}
         allow-empty-commit: true
-        branch-name: export/${{ github.event.inputs.solution_name }}-${{ github.run_number }}
+        branch-name: ${{ github.event.inputs.solution_name }}-${{ github.run_number }}
 
     - name: Create PR
       uses: actions/github-script@v7
       env:
-        BRANCH_NAME: ${{ steps.branch_solution.outputs.branch-name }}
+        BRANCH_NAME: ${{ github.event.inputs.solution_name }}-${{ github.run_number }}
         SOLUTION_NAME: ${{ github.event.inputs.solution_name }}
         BASE_BRANCH: main
       with:

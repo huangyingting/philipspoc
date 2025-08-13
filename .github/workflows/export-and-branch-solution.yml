@@ -66,9 +66,52 @@ jobs:
         overwrite-files: true
 
     - name: Branch Solution, Prepare it for a Pull Request
+      id: branch_solution
       uses: microsoft/powerplatform-actions/branch-solution@v1
       with:
         solution-folder: ${{ github.event.inputs.solution_folder}}/${{ github.event.inputs.solution_name }}
         solution-target-folder: ${{ github.event.inputs.solution_target_folder}}/${{ github.event.inputs.solution_name }}
         repo-token: ${{ secrets.GITHUB_TOKEN }}
         allow-empty-commit: true
+        branch-name: export/${{ github.event.inputs.solution_name }}-${{ github.run_number }}
+
+    - name: Create or reuse PR
+      uses: actions/github-script@v7
+      env:
+        # Prefer the action's output if provided; fall back to the deterministic name we set
+        BRANCH_NAME: ${{ steps.branch_solution.outputs.branch-name }}
+        SOLUTION_NAME: ${{ github.event.inputs.solution_name }}
+        BASE_BRANCH: main
+      with:
+        github-token: ${{ secrets.GITHUB_TOKEN }}
+        script: |
+          const core = require('@actions/core');
+          const branch = process.env.BRANCH_NAME;
+          const base = process.env.BASE_BRANCH || 'main';
+          const title = `Power Platform export: ${process.env.SOLUTION_NAME}`;
+          const headQualified = `${context.repo.owner}:${branch}`;
+
+          // Check if a PR from this branch already exists
+          const { data: existing } = await github.rest.pulls.list({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            state: 'open',
+            head: headQualified
+          });
+
+          if (existing.length) {
+            core.info(`PR already exists: ${existing[0].html_url}`);
+            return;
+          }
+
+          // Create a new PR
+          const { data: pr } = await github.rest.pulls.create({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            head: branch,
+            base,
+            title,
+            body: 'Automated PR generated after exporting and branching the Power Platform solution.'
+          });
+
+          core.info(`PR created: ${pr.html_url}`);

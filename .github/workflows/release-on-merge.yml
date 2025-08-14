@@ -11,7 +11,11 @@ on:
 jobs:
   release:
     if: github.event.pull_request.merged == true && github.event.pull_request.base.ref == 'main'
+    environment: philips-prod
     runs-on: ubuntu-latest
+    env:
+      SOURCE_FOLDER: solutions
+      RELEASE_FOLDER: out/release
     steps:
       - name: Checkout merge commit
         uses: actions/checkout@v4
@@ -28,7 +32,7 @@ jobs:
           echo "$json"
           echo "$json" > metadata.json
           solution=$(jq -r '.solution' metadata.json 2>/dev/null || echo HealthcareSystem)
-          version=$(jq -r '.version'  metadata.json 2>/dev/null || echo 0.0.0.0)
+          version=$(jq -r '.version'  metadata.json 2>/dev/null || echo 1.0.0.0)
 
           if [ -z "$version" ] || ! [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
             echo "Version missing or invalid, defaulting to 1.0.0.0"
@@ -39,18 +43,47 @@ jobs:
           echo "version=$version" >> $GITHUB_OUTPUT
           echo "Resolved: solution=$solution version=$version"
 
+      - name: Verify solution source folder
+        run: |
+          set -e
+          path="${SOURCE_FOLDER}/${{ steps.meta.outputs.solution }}"
+          if [ ! -d "$path" ]; then
+            echo "Expected solution folder not found: $path"
+            ls -R .
+            exit 1
+          fi
+          echo "Found solution folder: $path"
+
+      - name: Prepare release folder
+        run: mkdir -p "$RELEASE_FOLDER"
+
+      - name: Install Power Platform Tools
+        uses: microsoft/powerplatform-actions/actions-install@v1
+
+      - name: Pack solution (managed)
+        uses: microsoft/powerplatform-actions/pack-solution@v1
+        with:
+          solution-folder: ${{ env.SOURCE_FOLDER }}/${{ steps.meta.outputs.solution }}
+          solution-file: ${{ env.RELEASE_FOLDER }}/${{ steps.meta.outputs.solution }}.zip
+          solution-type: Managed
+
+      - name: Upload managed solution artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: managedSolutions
+          path: ${{ env.RELEASE_FOLDER }}/${{ steps.meta.outputs.solution }}.zip
+
       - name: Create tag (if absent)
         run: |
           set -euo pipefail
           git config user.name "github-actions"
-          git config user.email "actions@users.noreply.github.com"          
+          git config user.email "actions@users.noreply.github.com"
           tag="v${{ steps.meta.outputs.version }}"
           if git rev-parse -q --verify "refs/tags/$tag" >/dev/null; then
             echo "Tag $tag already exists locally."
           else
             git tag -a "$tag" -m "Release ${{ steps.meta.outputs.solution }} v${{ steps.meta.outputs.version }}"
           fi
-          # Check remote existence
           if git ls-remote --tags origin | grep -q "refs/tags/$tag$"; then
             echo "Tag $tag already exists on remote, skipping push."
           else
@@ -62,6 +95,20 @@ jobs:
         with:
           tag_name: v${{ steps.meta.outputs.version }}
           name: "${{ steps.meta.outputs.solution }} v${{ steps.meta.outputs.version }}"
-          body: "Automated release from merged PR #${{ github.event.pull_request.number }}"
+          body: |
+            Automated release from merged PR #${{ github.event.pull_request.number }}
+          files: |
+            ${{ env.RELEASE_FOLDER }}/${{ steps.meta.outputs.solution }}.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Import managed solution to production
+        uses: microsoft/powerplatform-actions/import-solution@v1
+        with:
+          environment-url: ${{ secrets.POWERPLATFORM_URL }}
+          app-id: ${{ secrets.CLIENT_ID }}
+          client-secret: ${{ secrets.CLIENT_SECRET }}
+          tenant-id: ${{ secrets.TENANT_ID }}
+          solution-file: ${{ env.RELEASE_FOLDER }}/${{ steps.meta.outputs.solution }}.zip
+          force-overwrite: true
+          publish-changes: true          

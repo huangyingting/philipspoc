@@ -1,4 +1,4 @@
-name: release-solution
+name: release-solution-simple
 on:
   workflow_dispatch:
     inputs:

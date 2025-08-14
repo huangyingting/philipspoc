@@ -41,14 +41,14 @@ jobs:
         lfs: true
 
     - name: Pack solution
-      uses: microsoft/powerplatform-actions/pack-solution@v0
+      uses: microsoft/powerplatform-actions/pack-solution@v1
       with:
         solution-folder: ${{ github.event.inputs.solution_source_folder}}/${{ github.event.inputs.solution_name }}
         solution-file: ${{ github.event.inputs.solution_outbound_folder}}/${{ github.event.inputs.solution_name }}.zip
         solution-type: Unmanaged
 
     - name: Import solution as unmanaged to build env
-      uses: microsoft/powerplatform-actions/import-solution@v0
+      uses: microsoft/powerplatform-actions/import-solution@v1
       with:
         environment-url: ${{secrets.POWERPLATFORM_URL}}
         app-id: ${{secrets.CLIENT_ID}}
@@ -59,7 +59,7 @@ jobs:
         publish-changes: true
 
     - name: Export solution as managed
-      uses: microsoft/powerplatform-actions/export-solution@v0
+      uses: microsoft/powerplatform-actions/export-solution@v1
       with:
         environment-url: ${{secrets.POWERPLATFORM_URL}}
         app-id: ${{secrets.CLIENT_ID}}
@@ -70,7 +70,7 @@ jobs:
         solution-output-file: ${{ github.event.inputs.solution_shipping_folder}}/${{ github.event.inputs.solution_name }}.zip
 
     - name: Upload the ready to ship solution to GH artifact store
-      uses: actions/upload-artifact@v2
+      uses: actions/upload-artifact@v4
       with:
         name: managedSolutions
         path: ${{ github.event.inputs.solution_shipping_folder}}/${{ github.event.inputs.solution_name }}.zip

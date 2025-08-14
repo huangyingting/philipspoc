@@ -3,79 +3,97 @@ on:
   workflow_dispatch:
     inputs:
       solution_name:
-        description: 'name of the solution to worked on from Power Platform'
+        description: 'Solution name from Power Platform'
         required: true
         default: HealthcareSystem
       solution_exported_folder:
-       description: 'folder where the released binaries are going to be hosted *do not change*'
-       required: true
-       default: out/exported
+        description: 'Folder staging exported managed solution (zip)'
+        required: true
+        default: out/exported
       solution_release_folder:
-       description: 'folder where the released binaries are going to be hosted *do not change*'
-       required: true
-       default: out/release
+        description: 'Folder used when importing to target environment'
+        required: true
+        default: out/release
   release:
     types: [created]
 
-
 permissions:
   contents: write
+
 jobs:
   convert-to-managed:
     environment: philips-dev
     runs-on: ubuntu-latest
     env:
+      # Resolve solution name:
+      # 1. Manual input
+      # 2. Release tag name (strip a leading v, keep rest)
+      # 3. Fallback default
+      SOLUTION_NAME: ${{ github.event.inputs.solution_name || (github.event.release.tag_name && replace(github.event.release.tag_name, '^v', '')) || 'HealthcareSystem' }}
+      EXPORT_FOLDER: ${{ github.event.inputs.solution_exported_folder || 'out/exported' }}
+      RELEASE_FOLDER: ${{ github.event.inputs.solution_release_folder || 'out/release' }}
       RUNNER_DEBUG: 1
-
     steps:
-    - name: Install Power Platform Tools
-      uses: microsoft/powerplatform-actions/actions-install@v1
+      - name: Show resolved variables
+        run: |
+          echo "Event: ${{ github.event_name }}"
+          echo "Tag: ${{ github.event.release.tag_name }}"
+          echo "SOLUTION_NAME=${SOLUTION_NAME}"
+          echo "EXPORT_FOLDER=${EXPORT_FOLDER}"
+          echo "RELEASE_FOLDER=${RELEASE_FOLDER}"
 
-    - name: Export Solution
-      uses: microsoft/powerplatform-actions/export-solution@v1
-      with:
-        environment-url: ${{secrets.POWERPLATFORM_URL}}
-        app-id: ${{secrets.CLIENT_ID}}
-        client-secret: ${{ secrets.CLIENT_SECRET }}
-        tenant-id: ${{secrets.TENANT_ID}}
-        solution-name: ${{ github.event.inputs.solution_name }}
-        managed: true
-        solution-output-file: ${{ github.event.inputs.solution_exported_folder}}/${{ github.event.inputs.solution_name }}.zip
+      - name: Install Power Platform Tools
+        uses: microsoft/powerplatform-actions/actions-install@v1
 
-    - name: Upload the ready to ship solution to GH artifact store
-      uses: actions/upload-artifact@v4
-      with:
-        name: managedSolutions
-        path: ${{ github.event.inputs.solution_exported_folder}}/${{ github.event.inputs.solution_name }}.zip
+      - name: Export Solution (managed)
+        uses: microsoft/powerplatform-actions/export-solution@v1
+        with:
+          environment-url: ${{ secrets.POWERPLATFORM_URL }}
+          app-id: ${{ secrets.CLIENT_ID }}
+          client-secret: ${{ secrets.CLIENT_SECRET }}
+          tenant-id: ${{ secrets.TENANT_ID }}
+          solution-name: ${{ env.SOLUTION_NAME }}
+          managed: true
+          solution-output-file: ${{ env.EXPORT_FOLDER }}/${{ env.SOLUTION_NAME }}.zip
+
+      - name: Upload managed solution artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: managedSolutions
+          path: ${{ env.EXPORT_FOLDER }}/${{ env.SOLUTION_NAME }}.zip
 
   release-to-prod:
-    needs: [ convert-to-managed ]
-    environment: philips-prod    
+    needs: [convert-to-managed]
+    environment: philips-prod
     runs-on: ubuntu-latest
     env:
+      SOLUTION_NAME: ${{ needs.convert-to-managed.outputs.SOLUTION_NAME || github.event.inputs.solution_name || (github.event.release.tag_name && replace(github.event.release.tag_name, '^v', '')) || 'HealthcareSystem' }}
+      # Repeat same resolution (GitHub does not auto-pass job env to next job unless outputs used)
+      EXPORT_FOLDER: ${{ github.event.inputs.solution_exported_folder || 'out/exported' }}
+      RELEASE_FOLDER: ${{ github.event.inputs.solution_release_folder || 'out/release' }}
       RUNNER_DEBUG: 1
-
     steps:
-    - uses: actions/checkout@v4
-      with:
-        lfs: true
+      - name: Install Power Platform Tools
+        uses: microsoft/powerplatform-actions/actions-install@v1
 
-    - name: Install Power Platform Tools
-      uses: microsoft/powerplatform-actions/actions-install@v1
+      - name: Download managed solution artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: managedSolutions
+          path: ${{ env.RELEASE_FOLDER }}
 
-    - name: Fetch the ready to ship solution from GH artifact store
-      uses: actions/download-artifact@v4
-      with:
-        name: managedSolutions
-        path: out/release/
+      - name: Verify artifact presence
+        run: |
+          ls -al ${{ env.RELEASE_FOLDER }}
+          test -f "${{ env.RELEASE_FOLDER }}/${{ env.SOLUTION_NAME }}.zip"
 
-    - name: Import solution to prod env
-      uses: microsoft/powerplatform-actions/import-solution@v1
-      with:
-        environment-url: ${{secrets.POWERPLATFORM_URL}}
-        app-id: ${{secrets.CLIENT_ID}}
-        client-secret: ${{ secrets.CLIENT_SECRET }}
-        tenant-id: ${{secrets.TENANT_ID}}
-        solution-file: ${{ github.event.inputs.solution_release_folder}}/${{ github.event.inputs.solution_name }}.zip
-        force-overwrite: true
-        publish-changes: true
+      - name: Import solution to prod
+        uses: microsoft/powerplatform-actions/import-solution@v1
+        with:
+          environment-url: ${{ secrets.POWERPLATFORM_URL }}
+          app-id: ${{ secrets.CLIENT_ID }}
+          client-secret: ${{ secrets.CLIENT_SECRET }}
+          tenant-id: ${{ secrets.TENANT_ID }}
+          solution-file: ${{ env.RELEASE_FOLDER }}/${{ env.SOLUTION_NAME }}.zip
+          force-overwrite: true
+          publish-changes: true

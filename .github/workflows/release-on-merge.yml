@@ -1,8 +1,8 @@
 name: release-on-merge
 
 on:
-  pull_request:
-    types: [closed]
+  # pull_request:
+  #   types: [closed]
   workflow_dispatch:
 
 permissions:

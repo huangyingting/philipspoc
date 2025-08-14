@@ -18,7 +18,7 @@ permissions:
   contents: write
 
 jobs:
-  export-solution:
+  export-solution-cn:
     environment: philips-dev-cn
     runs-on: ubuntu-latest
     outputs:
@@ -107,7 +107,7 @@ jobs:
         with:
           files: ${{ env.EXPORT_FOLDER }}/${{ env.SOLUTION_NAME }}.zip
 
-  release-to-prod:
+  release-to-prod-cn:
     needs: [export-solution]
     environment: philips-prod-cn
     runs-on: ubuntu-latest

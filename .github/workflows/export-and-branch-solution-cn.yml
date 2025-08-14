@@ -17,7 +17,7 @@ permissions:
   pull-requests: write
 
 jobs:
-  export-and-branch:
+  export-and-branch-cn:
     environment: philips-dev-cn
     runs-on: ubuntu-latest
 

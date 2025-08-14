@@ -130,3 +130,4 @@ jobs:
           solution-file: ${{ env.RELEASE_FOLDER }}/${{ steps.meta.outputs.solution }}.zip
           force-overwrite: true
           publish-changes: true
+          cloud: China

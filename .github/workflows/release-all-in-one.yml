@@ -31,8 +31,8 @@ jobs:
         id: resolve
         shell: bash
         run: |
-          BASE_NAME="${{ github.event.inputs.solution_name }}"
-          [ -z "$BASE_NAME" ] && BASE_NAME="HealthcareSystem"
+          SOLUTION_NAME="${{ github.event.inputs.solution_name }}"
+          [ -z "$SOLUTION_NAME" ] && SOLUTION_NAME="HealthcareSystem"
 
           if [ "${{ github.event_name }}" = "release" ]; then
             RAW_VERSION="${{ github.event.release.tag_name }}"
@@ -41,11 +41,8 @@ jobs:
           fi
           [ -z "$RAW_VERSION" ] && RAW_VERSION="v0.0.0.0"
 
-            # Strip leading v if present
-          VERSION="${RAW_VERSION#v}"
-
-          # Build composite solution name
-          SOLUTION_NAME="${BASE_NAME}_${VERSION//./_}"
+          # Strip leading v if present
+          SOLUTION_VERSION="${RAW_VERSION#v}"
 
           EXPORT_FOLDER="out/exported"
           RELEASE_FOLDER="out/release"
@@ -54,21 +51,21 @@ jobs:
           echo "  EVENT=${{ github.event_name }}"
           echo "  BASE_NAME=${BASE_NAME}"
           echo "  RAW_VERSION=${RAW_VERSION}"
-          echo "  VERSION=${VERSION}"
+          echo "  SOLUTION_VERSION=${SOLUTION_VERSION}"
           echo "  SOLUTION_NAME=${SOLUTION_NAME}"
           echo "  EXPORT_FOLDER=${EXPORT_FOLDER}"
           echo "  RELEASE_FOLDER=${RELEASE_FOLDER}"
 
           {
             echo "SOLUTION_NAME=${SOLUTION_NAME}"
-            echo "SOLUTION_VERSION=${VERSION}"
+            echo "SOLUTION_VERSION=${SOLUTION_VERSION}"
             echo "EXPORT_FOLDER=${EXPORT_FOLDER}"
             echo "RELEASE_FOLDER=${RELEASE_FOLDER}"
           } >> "$GITHUB_ENV"
 
           {
             echo "solution_name=${SOLUTION_NAME}"
-            echo "solution_version=${VERSION}"
+            echo "solution_version=${SOLUTION_VERSION}"
             echo "export_folder=${EXPORT_FOLDER}"
             echo "release_folder=${RELEASE_FOLDER}"
           } >> "$GITHUB_OUTPUT"

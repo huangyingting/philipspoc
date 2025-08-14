@@ -42,7 +42,9 @@ jobs:
       - name: Create tag (if absent)
         run: |
           set -euo pipefail
-            tag="v${{ steps.meta.outputs.version }}"
+          git config user.name "github-actions"
+          git config user.email "actions@users.noreply.github.com"          
+          tag="v${{ steps.meta.outputs.version }}"
           if git rev-parse -q --verify "refs/tags/$tag" >/dev/null; then
             echo "Tag $tag already exists locally."
           else

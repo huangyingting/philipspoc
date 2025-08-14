@@ -119,31 +119,77 @@ jobs:
           allow-empty-commit: true
           branch-name: ${{ env.BRANCH_NAME }}
 
-      - name: Create PR
+      - name: Create or update PR with metadata
         uses: actions/github-script@v7
         env:
           BRANCH_NAME: ${{ env.BRANCH_NAME }}
           SOLUTION_NAME: ${{ env.SOLUTION_NAME }}
+          SOLUTION_VERSION: ${{ env.SOLUTION_VERSION }}
           BASE_BRANCH: main
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
             const branch = process.env.BRANCH_NAME;
-            const base = process.env.BASE_BRANCH || 'main';
-            const title = `Power platform managed export: ${process.env.SOLUTION_NAME} v${{ steps.resolve.outputs.solution_version }}`;
-
             if (!branch) {
               core.setFailed('Branch name not found.');
               return;
             }
+            const base = process.env.BASE_BRANCH || 'main';
+            const SOLUTION_NAME = process.env.SOLUTION_NAME;
+            const SOLUTION_VERSION = process.env.SOLUTION_VERSION;
 
-            const { data: pr } = await github.rest.pulls.create({
+            const metaStart = '<!--POWER_SOLUTION_METADATA_START-->';
+            const metaEnd   = '<!--POWER_SOLUTION_METADATA_END-->';
+            const metadataObj = {
+              solution: SOLUTION_NAME,
+              version: SOLUTION_VERSION,
+              managed: true,
+              run_id: process.env.GITHUB_RUN_ID,
+              run_number: process.env.GITHUB_RUN_NUMBER,
+              exported_at: new Date().toISOString()
+            };
+            const metadataBlock = `${metaStart}
+            ${JSON.stringify(metadataObj, null, 2)}
+            ${metaEnd}`;
+
+            // Check if PR already exists
+            const prs = await github.paginate(
+              github.rest.pulls.list,
+              { owner: context.repo.owner, repo: context.repo.repo, head: `${context.repo.owner}:${branch}`, state: 'open' }
+            );
+
+            if (prs.length) {
+              const pr = prs[0];
+              const existingBody = pr.body || '';
+              const bodyHasBlock = existingBody.includes(metaStart) && existingBody.includes(metaEnd);
+              const newBody = bodyHasBlock
+                ? existingBody.replace(new RegExp(`${metaStart}[\\s\\S]*?${metaEnd}`), metadataBlock)
+                : (existingBody ? `${existingBody.trim()}\n\n${metadataBlock}` : metadataBlock);
+
+              if (newBody !== existingBody) {
+                await github.rest.pulls.update({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  pull_number: pr.number,
+                  body: newBody
+                });
+                core.info('PR body metadata block updated.');
+              } else {
+                core.info('PR body already up to date.');
+              }
+              core.info(`PR: ${pr.html_url}`);
+              return;
+            }
+
+            const title = `Power platform managed export: ${SOLUTION_NAME} v${SOLUTION_VERSION}`;
+            const body = `Automated PR generated after exporting (managed) and version update.\n\n${metadataBlock}`;
+
+            const { data: newPr } = await github.rest.pulls.create({
               owner: context.repo.owner,
               repo: context.repo.repo,
               head: branch,
               base,
               title,
-              body: 'Automated PR generated after exporting (managed), version update, and branching the Power Platform solution.'
+              body
             });
-
-            core.info(`PR created: ${pr.html_url}`);
+            core.info(`PR created: ${newPr.html_url}`);

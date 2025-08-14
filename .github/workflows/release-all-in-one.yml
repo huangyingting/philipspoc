@@ -70,58 +70,67 @@ jobs:
             echo "release_folder=${RELEASE_FOLDER}"
           } >> "$GITHUB_OUTPUT"
 
-  #     - name: Install Power Platform Tools
-  #       uses: microsoft/powerplatform-actions/actions-install@v1
+      - name: Install power platform tools
+        uses: microsoft/powerplatform-actions/actions-install@v1
 
-  #     - name: Export Solution (managed)
-  #       uses: microsoft/powerplatform-actions/export-solution@v1
-  #       with:
-  #         environment-url: ${{ secrets.POWERPLATFORM_URL }}
-  #         app-id: ${{ secrets.CLIENT_ID }}
-  #         client-secret: ${{ secrets.CLIENT_SECRET }}
-  #         tenant-id: ${{ secrets.TENANT_ID }}
-  #         solution-name: ${{ env.SOLUTION_NAME }}
-  #         managed: true
-  #         solution-output-file: ${{ env.EXPORT_FOLDER }}/${{ env.SOLUTION_NAME }}.zip
+      - name: Set online solution version
+        uses: microsoft/powerplatform-actions/set-online-solution-version@v1
+        with:
+          environment-url: ${{ secrets.POWERPLATFORM_URL }}
+          app-id: ${{ secrets.CLIENT_ID }}
+          client-secret: ${{ secrets.CLIENT_SECRET }}
+          tenant-id: ${{ secrets.TENANT_ID }}
+          name: ${{ env.SOLUTION_NAME }}
+          version: ${{ env.SOLUTION_VERSION }}
 
-  #     - name: Upload managed solution artifact
-  #       uses: actions/upload-artifact@v4
-  #       with:
-  #         name: managedSolutions
-  #         path: ${{ env.EXPORT_FOLDER }}/${{ env.SOLUTION_NAME }}.zip
+      - name: Export solution (managed)
+        uses: microsoft/powerplatform-actions/export-solution@v1
+        with:
+          environment-url: ${{ secrets.POWERPLATFORM_URL }}
+          app-id: ${{ secrets.CLIENT_ID }}
+          client-secret: ${{ secrets.CLIENT_SECRET }}
+          tenant-id: ${{ secrets.TENANT_ID }}
+          solution-name: ${{ env.SOLUTION_NAME }}
+          managed: true
+          solution-output-file: ${{ env.EXPORT_FOLDER }}/${{ env.SOLUTION_NAME }}.zip
 
-  # release-to-prod:
-  #   needs: [convert-to-managed]
-  #   environment: philips-prod
-  #   runs-on: ubuntu-latest
-  #   env:
-  #     SOLUTION_NAME: ${{ needs.convert-to-managed.outputs.solution_name }}
-  #     SOLUTION_VERSION: ${{ needs.convert-to-managed.outputs.solution_version }}
-  #     RELEASE_FOLDER: ${{ needs.convert-to-managed.outputs.release_folder }}
-  #   steps:
-  #     - name: Install Power Platform Tools
-  #       uses: microsoft/powerplatform-actions/actions-install@v1
+      - name: Upload managed solution artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: managedSolutions
+          path: ${{ env.EXPORT_FOLDER }}/${{ env.SOLUTION_NAME }}.zip
 
-  #     - name: Download managed solution artifact
-  #       uses: actions/download-artifact@v4
-  #       with:
-  #         name: managedSolutions
-  #         path: ${{ env.RELEASE_FOLDER }}
+  release-to-prod:
+    needs: [convert-to-managed]
+    environment: philips-prod
+    runs-on: ubuntu-latest
+    env:
+      SOLUTION_NAME: ${{ needs.convert-to-managed.outputs.solution_name }}
+      RELEASE_FOLDER: ${{ needs.convert-to-managed.outputs.release_folder }}
+    steps:
+      - name: Install Power Platform Tools
+        uses: microsoft/powerplatform-actions/actions-install@v1
 
-  #     - name: Verify artifact presence
-  #       shell: bash
-  #       run: |
-  #         ls -al "${{ env.RELEASE_FOLDER }}"
-  #         test -f "${{ env.RELEASE_FOLDER }}/${{ env.SOLUTION_NAME }}.zip"
-  #         echo "Using version ${SOLUTION_VERSION}"
+      - name: Download managed solution artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: managedSolutions
+          path: ${{ env.RELEASE_FOLDER }}
 
-  #     - name: Import solution to prod
-  #       uses: microsoft/powerplatform-actions/import-solution@v1
-  #       with:
-  #         environment-url: ${{ secrets.POWERPLATFORM_URL }}
-  #         app-id: ${{ secrets.CLIENT_ID }}
-  #         client-secret: ${{ secrets.CLIENT_SECRET }}
-  #         tenant-id: ${{ secrets.TENANT_ID }}
-  #         solution-file: ${{ env.RELEASE_FOLDER }}/${{ env.SOLUTION_NAME }}.zip
-  #         force-overwrite: true
-  #         publish-changes: true
+      - name: Verify artifact presence
+        shell: bash
+        run: |
+          ls -al "${{ env.RELEASE_FOLDER }}"
+          test -f "${{ env.RELEASE_FOLDER }}/${{ env.SOLUTION_NAME }}.zip"
+          echo "Using version ${SOLUTION_VERSION}"
+
+      - name: Import managed solution to production
+        uses: microsoft/powerplatform-actions/import-solution@v1
+        with:
+          environment-url: ${{ secrets.POWERPLATFORM_URL }}
+          app-id: ${{ secrets.CLIENT_ID }}
+          client-secret: ${{ secrets.CLIENT_SECRET }}
+          tenant-id: ${{ secrets.TENANT_ID }}
+          solution-file: ${{ env.RELEASE_FOLDER }}/${{ env.SOLUTION_NAME }}.zip
+          force-overwrite: true
+          publish-changes: true

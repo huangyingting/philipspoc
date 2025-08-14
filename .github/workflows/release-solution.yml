@@ -30,6 +30,7 @@ permissions:
   contents: write
 jobs:
   convert-to-managed:
+    environment: philips-build
     runs-on: ubuntu-latest
     env:
       RUNNER_DEBUG: 1
@@ -49,9 +50,10 @@ jobs:
     - name: Import solution as unmanaged to build env
       uses: microsoft/powerplatform-actions/import-solution@v0
       with:
-        environment-url: ${{env.BUILD_ENVIRONMENT_URL}}
-        user-name: ${{env.USERNAME}}
-        password-secret: ${{ secrets.password }}
+        environment-url: ${{secrets.POWERPLATFORM_URL}}
+        app-id: ${{secrets.CLIENT_ID}}
+        client-secret: ${{ secrets.CLIENT_SECRET }}
+        tenant-id: ${{secrets.TENANT_ID}}
         solution-file: ${{ github.event.inputs.solution_outbound_folder}}/${{ github.event.inputs.solution_name }}.zip
         force-overwrite: true
         publish-changes: true
@@ -59,9 +61,10 @@ jobs:
     - name: Export solution as managed
       uses: microsoft/powerplatform-actions/export-solution@v0
       with:
-        environment-url: ${{env.BUILD_ENVIRONMENT_URL}}
-        user-name: ${{env.USERNAME}}
-        password-secret: ${{ secrets.password }}
+        environment-url: ${{secrets.POWERPLATFORM_URL}}
+        app-id: ${{secrets.CLIENT_ID}}
+        client-secret: ${{ secrets.CLIENT_SECRET }}
+        tenant-id: ${{secrets.TENANT_ID}}
         solution-name: ${{ github.event.inputs.solution_name }}
         managed: true
         solution-output-file: ${{ github.event.inputs.solution_shipping_folder}}/${{ github.event.inputs.solution_name }}.zip
@@ -74,6 +77,7 @@ jobs:
 
   release-to-prod:
     needs: [ convert-to-managed ]
+    environment: philips-prod    
     runs-on: ubuntu-latest
     env:
       RUNNER_DEBUG: 1
@@ -84,17 +88,18 @@ jobs:
         lfs: true
 
     - name: Fetch the ready to ship solution from GH artifact store
-      uses: actions/download-artifact@v2
+      uses: actions/download-artifact@v4
       with:
         name: managedSolutions
         path: out/release/
 
     - name: Import solution to prod env
-      uses: microsoft/powerplatform-actions/import-solution@v0
+      uses: microsoft/powerplatform-actions/import-solution@v1
       with:
-        environment-url: ${{env.PRODUCTION_ENVIRONMENT_URL}}
-        user-name: ${{env.USERNAME}}
-        password-secret: ${{ secrets.password }}
+        environment-url: ${{secrets.POWERPLATFORM_URL}}
+        app-id: ${{secrets.CLIENT_ID}}
+        client-secret: ${{ secrets.CLIENT_SECRET }}
+        tenant-id: ${{secrets.TENANT_ID}}
         solution-file: ${{ github.event.inputs.solution_release_folder}}/${{ github.event.inputs.solution_name }}.zip
         force-overwrite: true
         publish-changes: true

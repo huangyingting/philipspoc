@@ -56,14 +56,14 @@ jobs:
         client-secret: ${{ secrets.CLIENT_SECRET }}
         tenant-id: ${{secrets.TENANT_ID}}
         solution-name: ${{ github.event.inputs.solution_name }}
-        managed: true
+        managed: false
         solution-output-file: ${{ github.event.inputs.solution_exported_folder}}/${{ github.event.inputs.solution_name }}.zip
 
-    - name: Upload the ready to ship solution to GH artifact store
-      uses: actions/upload-artifact@v4
-      with:
-        name: managedSolutions
-        path: ${{ github.event.inputs.solution_exported_folder}}/${{ github.event.inputs.solution_name }}.zip
+    # - name: Upload the ready to ship solution to GH artifact store
+    #   uses: actions/upload-artifact@v4
+    #   with:
+    #     name: managedSolutions
+    #     path: ${{ github.event.inputs.solution_exported_folder}}/${{ github.event.inputs.solution_name }}.zip
 
 
     - name: Unpack Solution
@@ -71,7 +71,7 @@ jobs:
       with:
         solution-file: ${{ github.event.inputs.solution_exported_folder}}/${{ github.event.inputs.solution_name }}.zip
         solution-folder: ${{ github.event.inputs.solution_folder}}/${{ github.event.inputs.solution_name }}
-        solution-type: 'Managed'
+        solution-type: 'Unmanaged'
         overwrite-files: true
 
     - name: Branch Solution, Prepare it for a Pull Request

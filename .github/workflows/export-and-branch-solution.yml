@@ -20,13 +20,6 @@ jobs:
   export-and-branch:
     environment: philips-dev
     runs-on: ubuntu-latest
-    outputs:
-      solution_name: ${{ steps.resolve.outputs.solution_name }}
-      solution_version: ${{ steps.resolve.outputs.solution_version }}
-      export_folder: ${{ steps.resolve.outputs.export_folder }}
-      unpack_folder: ${{ steps.resolve.outputs.unpack_folder }}
-      target_folder: ${{ steps.resolve.outputs.target_folder }}
-      branch_name: ${{ steps.resolve.outputs.branch_name }}
 
     steps:
       - name: Checkout
@@ -35,7 +28,6 @@ jobs:
           lfs: true
 
       - name: Resolve variables
-        id: resolve
         shell: bash
         run: |
           set -euo pipefail
@@ -63,15 +55,6 @@ jobs:
             echo "TARGET_FOLDER=$TARGET_FOLDER"
             echo "BRANCH_NAME=$BRANCH_NAME"
           } >> "$GITHUB_ENV"
-
-          {
-            echo "solution_name=$SOLUTION_NAME"
-            echo "solution_version=$SOLUTION_VERSION"
-            echo "export_folder=$EXPORT_FOLDER"
-            echo "unpack_folder=$UNPACK_FOLDER"
-            echo "target_folder=$TARGET_FOLDER"
-            echo "branch_name=$BRANCH_NAME"
-          } >> "$GITHUB_OUTPUT"
 
       - name: Install Power Platform Tools
         uses: microsoft/powerplatform-actions/actions-install@v1
@@ -117,19 +100,18 @@ jobs:
 
       - name: Create or update PR with metadata
         uses: actions/github-script@v7
-        env:
-          BRANCH_NAME: ${{ env.BRANCH_NAME }}
-          SOLUTION_NAME: ${{ env.SOLUTION_NAME }}
-          SOLUTION_VERSION: ${{ env.SOLUTION_VERSION }}
-          BASE_BRANCH: main
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
+            const branch = process.env.BRANCH_NAME;
+            const solution = process.env.SOLUTION_NAME;
+            const version = process.env.SOLUTION_VERSION;
+            const base = 'main';
             const metaStart = '<!--POWER_SOLUTION_METADATA_START-->';
             const metaEnd   = '<!--POWER_SOLUTION_METADATA_END-->';
             const metadataObj = {
-              solution: SOLUTION_NAME,
-              version: SOLUTION_VERSION,
+              solution,
+              version,
               managed: true,
               run_id: process.env.GITHUB_RUN_ID,
               run_number: process.env.GITHUB_RUN_NUMBER,
@@ -139,7 +121,6 @@ jobs:
             ${JSON.stringify(metadataObj, null, 2)}
             ${metaEnd}`;
 
-            // Check if PR already exists
             const prs = await github.paginate(
               github.rest.pulls.list,
               { owner: context.repo.owner, repo: context.repo.repo, head: `${context.repo.owner}:${branch}`, state: 'open' }
@@ -168,7 +149,7 @@ jobs:
               return;
             }
 
-            const title = `Power platform managed export: ${SOLUTION_NAME} v${SOLUTION_VERSION}`;
+            const title = `Power platform managed export: ${solution} v${version}`;
             const body = `Automated PR generated after exporting (managed) and version update.\n\n${metadataBlock}`;
 
             const { data: newPr } = await github.rest.pulls.create({

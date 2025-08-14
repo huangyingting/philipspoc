@@ -1,19 +1,16 @@
 name: release-all-in-one
+
 on:
   workflow_dispatch:
     inputs:
       solution_name:
-        description: 'Solution name from Power Platform'
-        required: true
+        description: 'Power platform solution name'
+        required: false
         default: HealthcareSystem
-      solution_exported_folder:
-        description: 'Folder staging exported managed solution (zip)'
-        required: true
-        default: out/exported
-      solution_release_folder:
-        description: 'Folder used when importing to target environment'
-        required: true
-        default: out/release
+      solution_version:
+        description: 'Solution version (semantic, prefixed with v)'
+        required: false
+        default: v0.0.0.0
   release:
     types: [created]
 
@@ -26,85 +23,108 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       solution_name: ${{ steps.resolve.outputs.solution_name }}
+      solution_version: ${{ steps.resolve.outputs.solution_version }}
       export_folder: ${{ steps.resolve.outputs.export_folder }}
       release_folder: ${{ steps.resolve.outputs.release_folder }}
     steps:
       - name: Resolve variables
         id: resolve
+        shell: bash
         run: |
-          # Resolve solution name
-            if [ "${{ github.event_name }}" = "release" ]; then
-              TAG="${{ github.event.release.tag_name }}"
-              # Strip only a single leading 'v' (e.g., v1.2.3 -> 1.2.3)
-              SOLUTION_NAME="${TAG#v}"
-            else
-              SOLUTION_NAME="${{ github.event.inputs.solution_name || 'HealthcareSystem' }}"
-            fi
-            EXPORT_FOLDER="${{ github.event.inputs.solution_exported_folder || 'out/exported' }}"
-            RELEASE_FOLDER="${{ github.event.inputs.solution_release_folder || 'out/release' }}"
+          BASE_NAME="${{ github.event.inputs.solution_name }}"
+          [ -z "$BASE_NAME" ] && BASE_NAME="HealthcareSystem"
 
-            echo "Resolved:"
-            echo "  SOLUTION_NAME=${SOLUTION_NAME}"
-            echo "  EXPORT_FOLDER=${EXPORT_FOLDER}"
-            echo "  RELEASE_FOLDER=${RELEASE_FOLDER}"
+          if [ "${{ github.event_name }}" = "release" ]; then
+            RAW_VERSION="${{ github.event.release.tag_name }}"
+          else
+            RAW_VERSION="${{ github.event.inputs.solution_version }}"
+          fi
+          [ -z "$RAW_VERSION" ] && RAW_VERSION="v0.0.0.0"
 
-            echo "SOLUTION_NAME=${SOLUTION_NAME}" >> $GITHUB_ENV
-            echo "EXPORT_FOLDER=${EXPORT_FOLDER}" >> $GITHUB_ENV
-            echo "RELEASE_FOLDER=${RELEASE_FOLDER}" >> $GITHUB_ENV
+            # Strip leading v if present
+          VERSION="${RAW_VERSION#v}"
 
-            echo "solution_name=${SOLUTION_NAME}" >> $GITHUB_OUTPUT
-            echo "export_folder=${EXPORT_FOLDER}" >> $GITHUB_OUTPUT
-            echo "release_folder=${RELEASE_FOLDER}" >> $GITHUB_OUTPUT
+          # Build composite solution name
+          SOLUTION_NAME="${BASE_NAME}_${VERSION//./_}"
 
-      - name: Install Power Platform Tools
-        uses: microsoft/powerplatform-actions/actions-install@v1
+          EXPORT_FOLDER="out/exported"
+          RELEASE_FOLDER="out/release"
 
-      - name: Export Solution (managed)
-        uses: microsoft/powerplatform-actions/export-solution@v1
-        with:
-          environment-url: ${{ secrets.POWERPLATFORM_URL }}
-          app-id: ${{ secrets.CLIENT_ID }}
-          client-secret: ${{ secrets.CLIENT_SECRET }}
-          tenant-id: ${{ secrets.TENANT_ID }}
-          solution-name: ${{ env.SOLUTION_NAME }}
-          managed: true
-          solution-output-file: ${{ env.EXPORT_FOLDER }}/${{ env.SOLUTION_NAME }}.zip
+          echo "Resolved:"
+          echo "  EVENT=${{ github.event_name }}"
+          echo "  BASE_NAME=${BASE_NAME}"
+          echo "  RAW_VERSION=${RAW_VERSION}"
+          echo "  VERSION=${VERSION}"
+          echo "  SOLUTION_NAME=${SOLUTION_NAME}"
+          echo "  EXPORT_FOLDER=${EXPORT_FOLDER}"
+          echo "  RELEASE_FOLDER=${RELEASE_FOLDER}"
 
-      - name: Upload managed solution artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: managedSolutions
-          path: ${{ env.EXPORT_FOLDER }}/${{ env.SOLUTION_NAME }}.zip
+          {
+            echo "SOLUTION_NAME=${SOLUTION_NAME}"
+            echo "SOLUTION_VERSION=${VERSION}"
+            echo "EXPORT_FOLDER=${EXPORT_FOLDER}"
+            echo "RELEASE_FOLDER=${RELEASE_FOLDER}"
+          } >> "$GITHUB_ENV"
 
-  release-to-prod:
-    needs: [convert-to-managed]
-    environment: philips-prod
-    runs-on: ubuntu-latest
-    env:
-      SOLUTION_NAME: ${{ needs.convert-to-managed.outputs.solution_name }}
-      RELEASE_FOLDER: ${{ needs.convert-to-managed.outputs.release_folder }}
-    steps:
-      - name: Install Power Platform Tools
-        uses: microsoft/powerplatform-actions/actions-install@v1
+          {
+            echo "solution_name=${SOLUTION_NAME}"
+            echo "solution_version=${VERSION}"
+            echo "export_folder=${EXPORT_FOLDER}"
+            echo "release_folder=${RELEASE_FOLDER}"
+          } >> "$GITHUB_OUTPUT"
 
-      - name: Download managed solution artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: managedSolutions
-          path: ${{ env.RELEASE_FOLDER }}
+  #     - name: Install Power Platform Tools
+  #       uses: microsoft/powerplatform-actions/actions-install@v1
 
-      - name: Verify artifact presence
-        run: |
-          ls -al "${{ env.RELEASE_FOLDER }}"
-          test -f "${{ env.RELEASE_FOLDER }}/${{ env.SOLUTION_NAME }}.zip"
+  #     - name: Export Solution (managed)
+  #       uses: microsoft/powerplatform-actions/export-solution@v1
+  #       with:
+  #         environment-url: ${{ secrets.POWERPLATFORM_URL }}
+  #         app-id: ${{ secrets.CLIENT_ID }}
+  #         client-secret: ${{ secrets.CLIENT_SECRET }}
+  #         tenant-id: ${{ secrets.TENANT_ID }}
+  #         solution-name: ${{ env.SOLUTION_NAME }}
+  #         managed: true
+  #         solution-output-file: ${{ env.EXPORT_FOLDER }}/${{ env.SOLUTION_NAME }}.zip
 
-      - name: Import solution to prod
-        uses: microsoft/powerplatform-actions/import-solution@v1
-        with:
-          environment-url: ${{ secrets.POWERPLATFORM_URL }}
-          app-id: ${{ secrets.CLIENT_ID }}
-          client-secret: ${{ secrets.CLIENT_SECRET }}
-          tenant-id: ${{ secrets.TENANT_ID }}
-          solution-file: ${{ env.RELEASE_FOLDER }}/${{ env.SOLUTION_NAME }}.zip
-          force-overwrite: true
-          publish-changes: true
+  #     - name: Upload managed solution artifact
+  #       uses: actions/upload-artifact@v4
+  #       with:
+  #         name: managedSolutions
+  #         path: ${{ env.EXPORT_FOLDER }}/${{ env.SOLUTION_NAME }}.zip
+
+  # release-to-prod:
+  #   needs: [convert-to-managed]
+  #   environment: philips-prod
+  #   runs-on: ubuntu-latest
+  #   env:
+  #     SOLUTION_NAME: ${{ needs.convert-to-managed.outputs.solution_name }}
+  #     SOLUTION_VERSION: ${{ needs.convert-to-managed.outputs.solution_version }}
+  #     RELEASE_FOLDER: ${{ needs.convert-to-managed.outputs.release_folder }}
+  #   steps:
+  #     - name: Install Power Platform Tools
+  #       uses: microsoft/powerplatform-actions/actions-install@v1
+
+  #     - name: Download managed solution artifact
+  #       uses: actions/download-artifact@v4
+  #       with:
+  #         name: managedSolutions
+  #         path: ${{ env.RELEASE_FOLDER }}
+
+  #     - name: Verify artifact presence
+  #       shell: bash
+  #       run: |
+  #         ls -al "${{ env.RELEASE_FOLDER }}"
+  #         test -f "${{ env.RELEASE_FOLDER }}/${{ env.SOLUTION_NAME }}.zip"
+  #         echo "Using version ${SOLUTION_VERSION}"
+
+  #     - name: Import solution to prod
+  #       uses: microsoft/powerplatform-actions/import-solution@v1
+  #       with:
+  #         environment-url: ${{ secrets.POWERPLATFORM_URL }}
+  #         app-id: ${{ secrets.CLIENT_ID }}
+  #         client-secret: ${{ secrets.CLIENT_SECRET }}
+  #         tenant-id: ${{ secrets.TENANT_ID }}
+  #         solution-file: ${{ env.RELEASE_FOLDER }}/${{ env.SOLUTION_NAME }}.zip
+  #         force-overwrite: true
+  #         publish-changes: true

@@ -1,0 +1,163 @@
+name: export-and-branch-solution-cn
+
+on:
+  workflow_dispatch:
+    inputs:
+      solution_name:
+        description: 'Solution name'
+        required: false
+        default: HealthcareSystemCN
+      solution_version:
+        description: 'Solution version (semantic, may be prefixed with v)'
+        required: false
+        default: v1.0.0.0
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  export-and-branch:
+    environment: philips-dev-cn
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          lfs: true
+
+      - name: Resolve variables
+        shell: bash
+        run: |
+          set -euo pipefail
+          SOLUTION_NAME="${{ github.event.inputs.solution_name }}"
+          RAW_VERSION="${{ github.event.inputs.solution_version }}"
+          SOLUTION_VERSION="${RAW_VERSION#v}"
+
+          EXPORT_FOLDER="out/exported"
+          UNPACK_FOLDER="out/solutions"
+          TARGET_FOLDER="solutions"
+          BRANCH_NAME="${SOLUTION_NAME}-${GITHUB_RUN_NUMBER}"
+
+          echo "SOLUTION_NAME=$SOLUTION_NAME"
+          echo "SOLUTION_VERSION=$SOLUTION_VERSION"
+          echo "EXPORT_FOLDER=$EXPORT_FOLDER"
+          echo "UNPACK_FOLDER=$UNPACK_FOLDER"
+          echo "TARGET_FOLDER=$TARGET_FOLDER"
+          echo "BRANCH_NAME=$BRANCH_NAME"
+
+          {
+            echo "SOLUTION_NAME=$SOLUTION_NAME"
+            echo "SOLUTION_VERSION=$SOLUTION_VERSION"
+            echo "EXPORT_FOLDER=$EXPORT_FOLDER"
+            echo "UNPACK_FOLDER=$UNPACK_FOLDER"
+            echo "TARGET_FOLDER=$TARGET_FOLDER"
+            echo "BRANCH_NAME=$BRANCH_NAME"
+          } >> "$GITHUB_ENV"
+
+      - name: Install Power Platform Tools
+        uses: microsoft/powerplatform-actions/actions-install@v1
+
+      - name: Set online solution version
+        uses: microsoft/powerplatform-actions/set-online-solution-version@v1
+        with:
+          environment-url: ${{ secrets.POWERPLATFORM_URL }}
+          app-id: ${{ secrets.CLIENT_ID }}
+          client-secret: ${{ secrets.CLIENT_SECRET }}
+          tenant-id: ${{ secrets.TENANT_ID }}
+          name: ${{ env.SOLUTION_NAME }}
+          version: ${{ env.SOLUTION_VERSION }}
+
+      - name: Export solution (managed)
+        uses: microsoft/powerplatform-actions/export-solution@v1
+        with:
+          environment-url: ${{ secrets.POWERPLATFORM_URL }}
+          app-id: ${{ secrets.CLIENT_ID }}
+          client-secret: ${{ secrets.CLIENT_SECRET }}
+          tenant-id: ${{ secrets.TENANT_ID }}
+          solution-name: ${{ env.SOLUTION_NAME }}
+          managed: true
+          solution-output-file: ${{ env.EXPORT_FOLDER }}/${{ env.SOLUTION_NAME }}.zip
+
+      - name: Unpack managed solution
+        uses: microsoft/powerplatform-actions/unpack-solution@v1
+        with:
+          solution-file: ${{ env.EXPORT_FOLDER }}/${{ env.SOLUTION_NAME }}.zip
+          solution-folder: ${{ env.UNPACK_FOLDER }}/${{ env.SOLUTION_NAME }}
+          solution-type: Managed
+          overwrite-files: true
+
+      - name: Branch solution, prepare PR
+        id: branch_solution
+        uses: microsoft/powerplatform-actions/branch-solution@v1
+        with:
+          solution-folder: ${{ env.UNPACK_FOLDER }}/${{ env.SOLUTION_NAME }}
+          solution-target-folder: ${{ env.TARGET_FOLDER }}/${{ env.SOLUTION_NAME }}
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          allow-empty-commit: true
+          branch-name: ${{ env.BRANCH_NAME }}
+
+      - name: Create or update PR with metadata
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const branch = process.env.BRANCH_NAME;
+            const solution = process.env.SOLUTION_NAME;
+            const version = process.env.SOLUTION_VERSION;
+            const base = 'main';
+            const metaStart = '<!--POWER_SOLUTION_METADATA_START-->';
+            const metaEnd   = '<!--POWER_SOLUTION_METADATA_END-->';
+            const metadataObj = {
+              solution,
+              version,
+              managed: true,
+              run_id: process.env.GITHUB_RUN_ID,
+              run_number: process.env.GITHUB_RUN_NUMBER,
+              exported_at: new Date().toISOString()
+            };
+            const metadataBlock = `${metaStart}
+            ${JSON.stringify(metadataObj, null, 2)}
+            ${metaEnd}`;
+
+            const prs = await github.paginate(
+              github.rest.pulls.list,
+              { owner: context.repo.owner, repo: context.repo.repo, head: `${context.repo.owner}:${branch}`, state: 'open' }
+            );
+
+            if (prs.length) {
+              const pr = prs[0];
+              const existingBody = pr.body || '';
+              const bodyHasBlock = existingBody.includes(metaStart) && existingBody.includes(metaEnd);
+              const newBody = bodyHasBlock
+                ? existingBody.replace(new RegExp(`${metaStart}[\\s\\S]*?${metaEnd}`), metadataBlock)
+                : (existingBody ? `${existingBody.trim()}\n\n${metadataBlock}` : metadataBlock);
+
+              if (newBody !== existingBody) {
+                await github.rest.pulls.update({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  pull_number: pr.number,
+                  body: newBody
+                });
+                core.info('PR body metadata block updated.');
+              } else {
+                core.info('PR body already up to date.');
+              }
+              core.info(`PR: ${pr.html_url}`);
+              return;
+            }
+
+            const title = `Power platform managed export: ${solution} v${version}`;
+            const body = `Automated PR generated after exporting (managed) and version update.\n\n${metadataBlock}`;
+
+            const { data: newPr } = await github.rest.pulls.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              head: branch,
+              base,
+              title,
+              body
+            });
+            core.info(`PR created: ${newPr.html_url}`);

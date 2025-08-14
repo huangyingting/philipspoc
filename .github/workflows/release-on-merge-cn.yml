@@ -1,0 +1,132 @@
+name: release-on-merge-cn
+
+on:
+  pull_request:
+    types: [closed]
+  workflow_dispatch:
+
+permissions:
+  contents: write   # needed for tag + release
+  pull-requests: read
+
+concurrency:
+  group: release-main
+  cancel-in-progress: false
+
+jobs:
+  release-on-merge-to-prod:
+    if: github.event.pull_request.merged == true && github.event.pull_request.base.ref == 'main'
+    environment: philips-prod-cn
+    runs-on: ubuntu-latest
+    env:
+      SOURCE_FOLDER: solutions
+      RELEASE_FOLDER: out/release
+      DEFAULT_SOLUTION: HealthcareSystemCN
+      DEFAULT_VERSION: 1.0.0.0
+      IMPORT_ENABLED: true  # set to false or gate with a secret for safety
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Checkout merge commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.merge_commit_sha }}
+          fetch-depth: 0
+
+      - name: Extract solution metadata
+        id: meta
+        run: |
+          set -euo pipefail
+          body='${{ github.event.pull_request.body }}'
+          block=$(sed -n '/<!--POWER_SOLUTION_METADATA_START-->/,/<!--POWER_SOLUTION_METADATA_END-->/p' <<<"$body" | sed '1d;$d' || true)
+          if jq -e . >/dev/null 2>&1 <<<"$block"; then
+            solution=$(jq -r '.solution // empty' <<<"$block")
+            version=$(jq -r '.version  // empty' <<<"$block")
+          fi
+          solution=${solution:-$DEFAULT_SOLUTION}
+          version=${version:-$DEFAULT_VERSION}
+
+          if [[ ! $version =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Version invalid ($version); falling back to $DEFAULT_VERSION"
+            version=$DEFAULT_VERSION
+          fi
+
+          echo "solution=$solution" >>"$GITHUB_OUTPUT"
+          echo "version=$version"   >>"$GITHUB_OUTPUT"
+          echo "Resolved: solution=$solution version=$version"
+
+      - name: Verify solution folder
+        run: |
+          set -e
+            path="${SOURCE_FOLDER}/${{ steps.meta.outputs.solution }}"
+          if [[ ! -d "$path" ]]; then
+            echo "ERROR: Solution folder not found: $path"
+            exit 1
+          fi
+          if [[ -z "$(find "$path" -type f -maxdepth 5 | head -n1)" ]]; then
+            echo "ERROR: Solution folder is empty: $path"
+            exit 1
+          fi
+          echo "Found solution folder: $path"
+
+      - name: Prepare release folder
+        run: mkdir -p "$RELEASE_FOLDER"
+
+      - name: Install Power Platform Tools
+        uses: microsoft/powerplatform-actions/actions-install@v1
+
+      - name: Pack managed solution
+        uses: microsoft/powerplatform-actions/pack-solution@v1
+        with:
+          solution-folder: ${{ env.SOURCE_FOLDER }}/${{ steps.meta.outputs.solution }}
+          solution-file: ${{ env.RELEASE_FOLDER }}/${{ steps.meta.outputs.solution }}.zip
+          solution-type: Managed
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: managedSolutions
+          path: ${{ env.RELEASE_FOLDER }}/${{ steps.meta.outputs.solution }}.zip
+
+      - name: Create tag if missing
+        id: tag
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions"
+          git config user.email "actions@users.noreply.github.com"
+          tag="v${{ steps.meta.outputs.version }}"
+          if git rev-parse -q --verify "refs/tags/$tag" >/dev/null || git ls-remote --tags origin | grep -q "refs/tags/$tag$"; then
+            echo "created=false" >>"$GITHUB_OUTPUT"
+            echo "Tag $tag already exists."
+          else
+            git tag -a "$tag" -m "Release ${{ steps.meta.outputs.solution }} v${{ steps.meta.outputs.version }}"
+            git push origin "$tag"
+            echo "created=true" >>"$GITHUB_OUTPUT"
+            echo "Created and pushed tag $tag"
+          fi
+
+      - name: Create GitHub release
+        if: steps.tag.outputs.created == 'true'
+        uses: softprops/action-gh-release@v2
+        with:
+            tag_name: v${{ steps.meta.outputs.version }}
+            name: "${{ steps.meta.outputs.solution }} v${{ steps.meta.outputs.version }}"
+            body: |
+              Automated release from merged PR #${{ github.event.pull_request.number }}
+            files: |
+              ${{ env.RELEASE_FOLDER }}/${{ steps.meta.outputs.solution }}.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Import managed solution to production
+        if: steps.tag.outputs.created == 'true' && env.IMPORT_ENABLED == 'true'
+        uses: microsoft/powerplatform-actions/import-solution@v1
+        with:
+          environment-url: ${{ secrets.POWERPLATFORM_URL }}
+          app-id: ${{ secrets.CLIENT_ID }}
+          client-secret: ${{ secrets.CLIENT_SECRET }}
+          tenant-id: ${{ secrets.TENANT_ID }}
+          solution-file: ${{ env.RELEASE_FOLDER }}/${{ steps.meta.outputs.solution }}.zip
+          force-overwrite: true
+          publish-changes: true

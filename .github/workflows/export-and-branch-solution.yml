@@ -4,113 +4,146 @@ on:
   workflow_dispatch:
     inputs:
       solution_name:
-        description: 'name of the solution to worked on from Power Platform'
-        required: true
+        description: 'Power platform solution name'
+        required: false
         default: HealthcareSystem
-      solution_exported_folder:
-        description: 'folder name for staging the exported solution *do not change*'
-        required: true
-        default: out/exported/
-      solution_folder:
-        description: 'staging the unpacked solution folder before check-in *do not change*'
-        required: true
-        default: out/solutions/
-      solution_target_folder: 
-       description: 'folder name to be created and checked in *do not change*'
-       required: true
-       default: solutions/
-
+      solution_version:
+        description: 'Solution version (semantic, may be prefixed with v)'
+        required: false
+        default: v1.0.0.0
 
 permissions:
   contents: write
   pull-requests: write
+
 jobs:
-  export-from-dev:
+  export-and-branch:
     environment: philips-dev
     runs-on: ubuntu-latest
-    env:
-      RUNNER_DEBUG: 1
+    outputs:
+      solution_name: ${{ steps.resolve.outputs.solution_name }}
+      solution_version: ${{ steps.resolve.outputs.solution_version }}
+      export_folder: ${{ steps.resolve.outputs.export_folder }}
+      unpack_folder: ${{ steps.resolve.outputs.unpack_folder }}
+      target_folder: ${{ steps.resolve.outputs.target_folder }}
+      branch_name: ${{ steps.resolve.outputs.branch_name }}
 
     steps:
-    - uses: actions/checkout@v4
-      with:
-        lfs: true
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          lfs: true
 
-    - name: Install Power Platform Tools
-      uses: microsoft/powerplatform-actions/actions-install@v1
+      - name: Resolve variables
+        id: resolve
+        shell: bash
+        run: |
+          RAW_NAME="${{ github.event.inputs.solution_name }}"
+          [ -z "$RAW_NAME" ] && RAW_NAME="HealthcareSystem"
+          RAW_VERSION="${{ github.event.inputs.solution_version }}"
+          [ -z "$RAW_VERSION" ] && RAW_VERSION="v0.0.0.0"
+          # Strip leading v
+            SOLUTION_VERSION="${RAW_VERSION#v}"
 
-    - name: Who Am I
-      uses: microsoft/powerplatform-actions/who-am-i@v1
-      with:
-        environment-url: ${{secrets.POWERPLATFORM_URL}}
-        app-id: ${{secrets.CLIENT_ID}}
-        client-secret: ${{ secrets.CLIENT_SECRET }}
-        tenant-id: ${{secrets.TENANT_ID}}
+          EXPORT_FOLDER="out/exported"
+          UNPACK_FOLDER="out/solutions"
+          TARGET_FOLDER="solutions"
+          BRANCH_NAME="${RAW_NAME}-${GITHUB_RUN_NUMBER}"
 
+          echo "Resolved:"
+          echo "  SOLUTION_NAME=$RAW_NAME"
+          echo "  RAW_VERSION=$RAW_VERSION"
+          echo "  SOLUTION_VERSION=$SOLUTION_VERSION"
+          echo "  EXPORT_FOLDER=$EXPORT_FOLDER"
+          echo "  UNPACK_FOLDER=$UNPACK_FOLDER"
+          echo "  TARGET_FOLDER=$TARGET_FOLDER"
+          echo "  BRANCH_NAME=$BRANCH_NAME"
 
-    - name: Export Solution
-      uses: microsoft/powerplatform-actions/export-solution@v1
-      with:
-        environment-url: ${{secrets.POWERPLATFORM_URL}}
-        app-id: ${{secrets.CLIENT_ID}}
-        client-secret: ${{ secrets.CLIENT_SECRET }}
-        tenant-id: ${{secrets.TENANT_ID}}
-        solution-name: ${{ github.event.inputs.solution_name }}
-        managed: false
-        solution-output-file: ${{ github.event.inputs.solution_exported_folder}}/${{ github.event.inputs.solution_name }}.zip
+          {
+            echo "SOLUTION_NAME=$RAW_NAME"
+            echo "SOLUTION_VERSION=$SOLUTION_VERSION"
+            echo "EXPORT_FOLDER=$EXPORT_FOLDER"
+            echo "UNPACK_FOLDER=$UNPACK_FOLDER"
+            echo "TARGET_FOLDER=$TARGET_FOLDER"
+            echo "BRANCH_NAME=$BRANCH_NAME"
+          } >> "$GITHUB_ENV"
 
-    # - name: Upload the ready to ship solution to GH artifact store
-    #   uses: actions/upload-artifact@v4
-    #   with:
-    #     name: managedSolutions
-    #     path: ${{ github.event.inputs.solution_exported_folder}}/${{ github.event.inputs.solution_name }}.zip
+          {
+            echo "solution_name=$RAW_NAME"
+            echo "solution_version=$SOLUTION_VERSION"
+            echo "export_folder=$EXPORT_FOLDER"
+            echo "unpack_folder=$UNPACK_FOLDER"
+            echo "target_folder=$TARGET_FOLDER"
+            echo "branch_name=$BRANCH_NAME"
+          } >> "$GITHUB_OUTPUT"
 
+      - name: Install Power Platform Tools
+        uses: microsoft/powerplatform-actions/actions-install@v1
 
-    - name: Unpack Solution
-      uses: microsoft/powerplatform-actions/unpack-solution@v1
-      with:
-        solution-file: ${{ github.event.inputs.solution_exported_folder}}/${{ github.event.inputs.solution_name }}.zip
-        solution-folder: ${{ github.event.inputs.solution_folder}}/${{ github.event.inputs.solution_name }}
-        solution-type: 'Unmanaged'
-        overwrite-files: true
+      - name: Set online solution version
+        uses: microsoft/powerplatform-actions/set-online-solution-version@v1
+        with:
+          environment-url: ${{ secrets.POWERPLATFORM_URL }}
+          app-id: ${{ secrets.CLIENT_ID }}
+          client-secret: ${{ secrets.CLIENT_SECRET }}
+          tenant-id: ${{ secrets.TENANT_ID }}
+          name: ${{ env.SOLUTION_NAME }}
+          version: ${{ env.SOLUTION_VERSION }}
 
-    - name: Branch Solution, Prepare it for a Pull Request
-      id: branch_solution
-      uses: microsoft/powerplatform-actions/branch-solution@v1
-      with:
-        solution-folder: ${{ github.event.inputs.solution_folder}}/${{ github.event.inputs.solution_name }}
-        solution-target-folder: ${{ github.event.inputs.solution_target_folder}}/${{ github.event.inputs.solution_name }}
-        repo-token: ${{ secrets.GITHUB_TOKEN }}
-        allow-empty-commit: true
-        branch-name: ${{ github.event.inputs.solution_name }}-${{ github.run_number }}
+      - name: Export solution (managed)
+        uses: microsoft/powerplatform-actions/export-solution@v1
+        with:
+          environment-url: ${{ secrets.POWERPLATFORM_URL }}
+          app-id: ${{ secrets.CLIENT_ID }}
+          client-secret: ${{ secrets.CLIENT_SECRET }}
+          tenant-id: ${{ secrets.TENANT_ID }}
+          solution-name: ${{ env.SOLUTION_NAME }}
+          managed: true
+          solution-output-file: ${{ env.EXPORT_FOLDER }}/${{ env.SOLUTION_NAME }}.zip
 
-    - name: Create PR
-      uses: actions/github-script@v7
-      env:
-        BRANCH_NAME: ${{ github.event.inputs.solution_name }}-${{ github.run_number }}
-        SOLUTION_NAME: ${{ github.event.inputs.solution_name }}
-        BASE_BRANCH: main
-      with:
-        github-token: ${{ secrets.GITHUB_TOKEN }}
-        script: |
-          const branch = process.env.BRANCH_NAME;
-          const base = process.env.BASE_BRANCH || 'main';
-          const title = `Power Platform export: ${process.env.SOLUTION_NAME}`;
-          const headQualified = `${context.repo.owner}:${branch}`;
+      - name: Unpack managed solution
+        uses: microsoft/powerplatform-actions/unpack-solution@v1
+        with:
+          solution-file: ${{ env.EXPORT_FOLDER }}/${{ env.SOLUTION_NAME }}.zip
+          solution-folder: ${{ env.UNPACK_FOLDER }}/${{ env.SOLUTION_NAME }}
+          solution-type: Managed
+          overwrite-files: true
 
-          if (!branch) {
-            core.setFailed('Branch name not found.');
-            return;
-          }
+      - name: Branch solution, prepare PR
+        id: branch_solution
+        uses: microsoft/powerplatform-actions/branch-solution@v1
+        with:
+          solution-folder: ${{ env.UNPACK_FOLDER }}/${{ env.SOLUTION_NAME }}
+          solution-target-folder: ${{ env.TARGET_FOLDER }}/${{ env.SOLUTION_NAME }}
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          allow-empty-commit: true
+          branch-name: ${{ env.BRANCH_NAME }}
 
-          // Create a new PR
-          const { data: pr } = await github.rest.pulls.create({
-            owner: context.repo.owner,
-            repo: context.repo.repo,
-            head: branch,
-            base,
-            title,
-            body: 'Automated PR generated after exporting and branching the Power Platform solution.'
-          });
+      - name: Create PR
+        uses: actions/github-script@v7
+        env:
+          BRANCH_NAME: ${{ env.BRANCH_NAME }}
+          SOLUTION_NAME: ${{ env.SOLUTION_NAME }}
+          BASE_BRANCH: main
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const branch = process.env.BRANCH_NAME;
+            const base = process.env.BASE_BRANCH || 'main';
+            const title = `Power platform managed export: ${process.env.SOLUTION_NAME} v${{ steps.resolve.outputs.solution_version }}`;
 
-          core.info(`PR created: ${pr.html_url}`);
+            if (!branch) {
+              core.setFailed('Branch name not found.');
+              return;
+            }
+
+            const { data: pr } = await github.rest.pulls.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              head: branch,
+              base,
+              title,
+              body: 'Automated PR generated after exporting (managed), version update, and branching the Power Platform solution.'
+            });
+
+            core.info(`PR created: ${pr.html_url}`);

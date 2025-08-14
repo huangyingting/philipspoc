@@ -38,29 +38,25 @@ jobs:
         id: resolve
         shell: bash
         run: |
-          RAW_NAME="${{ github.event.inputs.solution_name }}"
-          [ -z "$RAW_NAME" ] && RAW_NAME="HealthcareSystem"
+          set -euo pipefail
+          SOLUTION_NAME="${{ github.event.inputs.solution_name }}"
           RAW_VERSION="${{ github.event.inputs.solution_version }}"
-          [ -z "$RAW_VERSION" ] && RAW_VERSION="v0.0.0.0"
-          # Strip leading v
-            SOLUTION_VERSION="${RAW_VERSION#v}"
+          SOLUTION_VERSION="${RAW_VERSION#v}"
 
           EXPORT_FOLDER="out/exported"
           UNPACK_FOLDER="out/solutions"
           TARGET_FOLDER="solutions"
-          BRANCH_NAME="${RAW_NAME}-${GITHUB_RUN_NUMBER}"
+          BRANCH_NAME="${SOLUTION_NAME}-${GITHUB_RUN_NUMBER}"
 
-          echo "Resolved:"
-          echo "  SOLUTION_NAME=$RAW_NAME"
-          echo "  RAW_VERSION=$RAW_VERSION"
-          echo "  SOLUTION_VERSION=$SOLUTION_VERSION"
-          echo "  EXPORT_FOLDER=$EXPORT_FOLDER"
-          echo "  UNPACK_FOLDER=$UNPACK_FOLDER"
-          echo "  TARGET_FOLDER=$TARGET_FOLDER"
-          echo "  BRANCH_NAME=$BRANCH_NAME"
+          echo "SOLUTION_NAME=$SOLUTION_NAME"
+          echo "SOLUTION_VERSION=$SOLUTION_VERSION"
+          echo "EXPORT_FOLDER=$EXPORT_FOLDER"
+          echo "UNPACK_FOLDER=$UNPACK_FOLDER"
+          echo "TARGET_FOLDER=$TARGET_FOLDER"
+          echo "BRANCH_NAME=$BRANCH_NAME"
 
           {
-            echo "SOLUTION_NAME=$RAW_NAME"
+            echo "SOLUTION_NAME=$SOLUTION_NAME"
             echo "SOLUTION_VERSION=$SOLUTION_VERSION"
             echo "EXPORT_FOLDER=$EXPORT_FOLDER"
             echo "UNPACK_FOLDER=$UNPACK_FOLDER"
@@ -69,7 +65,7 @@ jobs:
           } >> "$GITHUB_ENV"
 
           {
-            echo "solution_name=$RAW_NAME"
+            echo "solution_name=$SOLUTION_NAME"
             echo "solution_version=$SOLUTION_VERSION"
             echo "export_folder=$EXPORT_FOLDER"
             echo "unpack_folder=$UNPACK_FOLDER"
@@ -129,15 +125,6 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            const branch = process.env.BRANCH_NAME;
-            if (!branch) {
-              core.setFailed('Branch name not found.');
-              return;
-            }
-            const base = process.env.BASE_BRANCH || 'main';
-            const SOLUTION_NAME = process.env.SOLUTION_NAME;
-            const SOLUTION_VERSION = process.env.SOLUTION_VERSION;
-
             const metaStart = '<!--POWER_SOLUTION_METADATA_START-->';
             const metaEnd   = '<!--POWER_SOLUTION_METADATA_END-->';
             const metadataObj = {

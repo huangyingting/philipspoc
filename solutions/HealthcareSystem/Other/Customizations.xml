@@ -10,8 +10,8 @@
   <OrganizationSettings />
   <optionsets />
   <CustomControls />
-  <AppModuleSiteMaps />
   <EntityDataProviders />
+  <CanvasApps />
   <Languages>
     <Language>1033</Language>
   </Languages>

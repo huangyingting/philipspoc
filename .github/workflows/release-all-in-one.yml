@@ -18,7 +18,7 @@ permissions:
   contents: write
 
 jobs:
-  convert-to-managed:
+  export-solution:
     environment: philips-dev
     runs-on: ubuntu-latest
     outputs:
@@ -99,6 +99,13 @@ jobs:
         with:
           name: managedSolutions
           path: ${{ env.EXPORT_FOLDER }}/${{ env.SOLUTION_NAME }}.zip
+
+      # If triggered by an already-created release, just upload the asset to it
+      - name: Upload asset to existing release
+        if: github.event_name == 'release'
+        uses: softprops/action-gh-release@v1
+        with:
+          files: ${{ env.EXPORT_FOLDER }}/${{ env.SOLUTION_NAME }}.zip
 
   release-to-prod:
     needs: [convert-to-managed]

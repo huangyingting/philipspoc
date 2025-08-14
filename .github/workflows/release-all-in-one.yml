@@ -4,15 +4,15 @@ on:
   workflow_dispatch:
     inputs:
       solution_name:
-        description: 'Power platform solution name'
+        description: "Solution name"
         required: false
         default: HealthcareSystem
       solution_version:
-        description: 'Solution version (semantic, prefixed with v)'
+        description: "Solution version (semantic, prefixed with v)"
         required: false
         default: v1.0.0.0
-  # release:
-  #   types: [published, released]
+  release:
+    types: [published, released]
 
 permissions:
   contents: write
@@ -39,7 +39,7 @@ jobs:
           else
             RAW_VERSION="${{ github.event.inputs.solution_version }}"
           fi
-          [ -z "$RAW_VERSION" ] && RAW_VERSION="v0.0.0.0"
+          [ -z "$RAW_VERSION" ] && RAW_VERSION="v1.0.0.0"
 
           # Strip leading v if present
           SOLUTION_VERSION="${RAW_VERSION#v}"
@@ -100,7 +100,6 @@ jobs:
           name: managedSolutions
           path: ${{ env.EXPORT_FOLDER }}/${{ env.SOLUTION_NAME }}.zip
 
-      # If triggered by an already-created release, just upload the asset to it
       - name: Upload asset to existing release
         if: github.event_name == 'release'
         uses: softprops/action-gh-release@v1

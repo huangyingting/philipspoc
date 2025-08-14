@@ -14,7 +14,7 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  release:
+  release-on-merge-to-prod:
     if: github.event.pull_request.merged == true && github.event.pull_request.base.ref == 'main'
     environment: philips-prod
     runs-on: ubuntu-latest

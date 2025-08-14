@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       solution_name:
-        description: 'Power platform solution name'
+        description: 'Solution name'
         required: false
         default: HealthcareSystem
       solution_version:

@@ -108,12 +108,12 @@ jobs:
           files: ${{ env.EXPORT_FOLDER }}/${{ env.SOLUTION_NAME }}.zip
 
   release-to-prod-cn:
-    needs: [export-solution]
+    needs: [export-solution-cn]
     environment: philips-prod-cn
     runs-on: ubuntu-latest
     env:
-      SOLUTION_NAME: ${{ needs.export-solution.outputs.solution_name }}
-      RELEASE_FOLDER: ${{ needs.export-solution.outputs.release_folder }}
+      SOLUTION_NAME: ${{ needs.export-solution-cn.outputs.solution_name }}
+      RELEASE_FOLDER: ${{ needs.export-solution-cn.outputs.release_folder }}
     steps:
       - name: Install Power Platform Tools
         uses: microsoft/powerplatform-actions/actions-install@v1

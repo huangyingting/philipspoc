@@ -79,7 +79,6 @@ jobs:
           solution-name: ${{ env.SOLUTION_NAME }}
           managed: true
           solution-output-file: ${{ env.EXPORT_FOLDER }}/${{ env.SOLUTION_NAME }}.zip
-          cloud: China
 
       - name: Unpack managed solution
         uses: microsoft/powerplatform-actions/unpack-solution@v1

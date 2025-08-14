@@ -22,7 +22,7 @@
                     <row>
                       <cell id="{0fa9d1ee-ee9a-47d2-ba56-0abe94b25273}">
                         <labels>
-                          <label description="Request Name" languagecode="1033" />
+                          <label description="" languagecode="1033" />
                         </labels>
                         <control id="icsu_requestname" classid="{4273EDBD-AC1D-40d3-9FB2-095C621B552D}" datafieldname="icsu_requestname" />
                       </cell>
@@ -30,7 +30,7 @@
                     <row>
                       <cell id="{a64d9403-6f8f-46a9-8688-0160ead6cfab}">
                         <labels>
-                          <label description="Owner" languagecode="1033" />
+                          <label description="" languagecode="1033" />
                         </labels>
                         <control id="ownerid" classid="{270BD3DB-D9AF-4782-9025-509E298DEC0A}" datafieldname="ownerid" />
                       </cell>

@@ -1,0 +1,42 @@
+name: release-on-merge
+on:
+  pull_request:
+    types: [closed]
+
+jobs:
+  release:
+    if: github.event.pull_request.merged == true && github.event.pull_request.base.ref == 'main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.merge_commit_sha }}
+
+      - name: Extract solution metadata block
+        id: meta
+        run: |
+          body='${{ github.event.pull_request.body }}'
+          json=$(printf "%s" "$body" | awk '/<!--POWER_SOLUTION_METADATA_START-->/, /<!--POWER_SOLUTION_METADATA_END-->/' | sed -e '1d;$d')
+          echo "$json"
+          echo "metadata=$(echo "$json" | tr '\n' ' ')" >> $GITHUB_OUTPUT
+          echo "$json" > metadata.json
+          solution=$(jq -r '.solution' metadata.json 2>/dev/null || echo HealthcareSystem)
+          version=$(jq -r '.version' metadata.json 2>/dev/null || echo ${{ steps.ver.outputs.version }})
+          echo "solution=$solution" >> $GITHUB_OUTPUT
+          echo "version=$version" >> $GITHUB_OUTPUT
+
+      - name: Create tag
+        run: |
+          git config user.name "github-actions"
+          git config user.email "actions@users.noreply.github.com"
+          git tag -a "v${{ steps.meta.outputs.version }}" -m "Release ${{ steps.meta.outputs.solution }} v${{ steps.meta.outputs.version }}"
+          git push origin "v${{ steps.meta.outputs.version }}"
+
+      - name: Create gitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+            tag_name: v${{ steps.meta.outputs.version }}
+            name: "${{ steps.meta.outputs.solution }} v${{ steps.meta.outputs.version }}"
+            body: "Automated release from merged PR #${{ github.event.pull_request.number }}"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

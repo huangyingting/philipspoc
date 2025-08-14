@@ -11,8 +11,8 @@ on:
         description: 'Solution version (semantic, prefixed with v)'
         required: false
         default: v1.0.0.0
-  release:
-    types: [published, released]
+  # release:
+  #   types: [published, released]
 
 permissions:
   contents: write

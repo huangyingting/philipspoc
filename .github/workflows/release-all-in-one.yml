@@ -24,23 +24,37 @@ jobs:
   convert-to-managed:
     environment: philips-dev
     runs-on: ubuntu-latest
-    env:
-      # Resolve solution name:
-      # 1. Manual input
-      # 2. Release tag name (strip a leading v, keep rest)
-      # 3. Fallback default
-      SOLUTION_NAME: ${{ github.event.inputs.solution_name || (github.event.release.tag_name && replace(github.event.release.tag_name, '^v', '')) || 'HealthcareSystem' }}
-      EXPORT_FOLDER: ${{ github.event.inputs.solution_exported_folder || 'out/exported' }}
-      RELEASE_FOLDER: ${{ github.event.inputs.solution_release_folder || 'out/release' }}
-      RUNNER_DEBUG: 1
+    outputs:
+      solution_name: ${{ steps.resolve.outputs.solution_name }}
+      export_folder: ${{ steps.resolve.outputs.export_folder }}
+      release_folder: ${{ steps.resolve.outputs.release_folder }}
     steps:
-      - name: Show resolved variables
+      - name: Resolve variables
+        id: resolve
         run: |
-          echo "Event: ${{ github.event_name }}"
-          echo "Tag: ${{ github.event.release.tag_name }}"
-          echo "SOLUTION_NAME=${SOLUTION_NAME}"
-          echo "EXPORT_FOLDER=${EXPORT_FOLDER}"
-          echo "RELEASE_FOLDER=${RELEASE_FOLDER}"
+          # Resolve solution name
+            if [ "${{ github.event_name }}" = "release" ]; then
+              TAG="${{ github.event.release.tag_name }}"
+              # Strip only a single leading 'v' (e.g., v1.2.3 -> 1.2.3)
+              SOLUTION_NAME="${TAG#v}"
+            else
+              SOLUTION_NAME="${{ github.event.inputs.solution_name || 'HealthcareSystem' }}"
+            fi
+            EXPORT_FOLDER="${{ github.event.inputs.solution_exported_folder || 'out/exported' }}"
+            RELEASE_FOLDER="${{ github.event.inputs.solution_release_folder || 'out/release' }}"
+
+            echo "Resolved:"
+            echo "  SOLUTION_NAME=${SOLUTION_NAME}"
+            echo "  EXPORT_FOLDER=${EXPORT_FOLDER}"
+            echo "  RELEASE_FOLDER=${RELEASE_FOLDER}"
+
+            echo "SOLUTION_NAME=${SOLUTION_NAME}" >> $GITHUB_ENV
+            echo "EXPORT_FOLDER=${EXPORT_FOLDER}" >> $GITHUB_ENV
+            echo "RELEASE_FOLDER=${RELEASE_FOLDER}" >> $GITHUB_ENV
+
+            echo "solution_name=${SOLUTION_NAME}" >> $GITHUB_OUTPUT
+            echo "export_folder=${EXPORT_FOLDER}" >> $GITHUB_OUTPUT
+            echo "release_folder=${RELEASE_FOLDER}" >> $GITHUB_OUTPUT
 
       - name: Install Power Platform Tools
         uses: microsoft/powerplatform-actions/actions-install@v1
@@ -67,11 +81,8 @@ jobs:
     environment: philips-prod
     runs-on: ubuntu-latest
     env:
-      SOLUTION_NAME: ${{ needs.convert-to-managed.outputs.SOLUTION_NAME || github.event.inputs.solution_name || (github.event.release.tag_name && replace(github.event.release.tag_name, '^v', '')) || 'HealthcareSystem' }}
-      # Repeat same resolution (GitHub does not auto-pass job env to next job unless outputs used)
-      EXPORT_FOLDER: ${{ github.event.inputs.solution_exported_folder || 'out/exported' }}
-      RELEASE_FOLDER: ${{ github.event.inputs.solution_release_folder || 'out/release' }}
-      RUNNER_DEBUG: 1
+      SOLUTION_NAME: ${{ needs.convert-to-managed.outputs.solution_name }}
+      RELEASE_FOLDER: ${{ needs.convert-to-managed.outputs.release_folder }}
     steps:
       - name: Install Power Platform Tools
         uses: microsoft/powerplatform-actions/actions-install@v1
@@ -84,7 +95,7 @@ jobs:
 
       - name: Verify artifact presence
         run: |
-          ls -al ${{ env.RELEASE_FOLDER }}
+          ls -al "${{ env.RELEASE_FOLDER }}"
           test -f "${{ env.RELEASE_FOLDER }}/${{ env.SOLUTION_NAME }}.zip"
 
       - name: Import solution to prod

@@ -1,4 +1,9 @@
 name: release-on-merge
+
+permissions:
+  contents: write
+  pull-requests: read
+
 on:
   pull_request:
     types: [closed]
@@ -8,35 +13,53 @@ jobs:
     if: github.event.pull_request.merged == true && github.event.pull_request.base.ref == 'main'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout merge commit
+        uses: actions/checkout@v4
         with:
           ref: ${{ github.event.pull_request.merge_commit_sha }}
+          fetch-depth: 0
 
       - name: Extract solution metadata block
         id: meta
         run: |
+          set -euo pipefail
           body='${{ github.event.pull_request.body }}'
           json=$(printf "%s" "$body" | awk '/<!--POWER_SOLUTION_METADATA_START-->/, /<!--POWER_SOLUTION_METADATA_END-->/' | sed -e '1d;$d')
           echo "$json"
-          echo "metadata=$(echo "$json" | tr '\n' ' ')" >> $GITHUB_OUTPUT
           echo "$json" > metadata.json
           solution=$(jq -r '.solution' metadata.json 2>/dev/null || echo HealthcareSystem)
-          version=$(jq -r '.version' metadata.json 2>/dev/null || echo ${{ steps.ver.outputs.version }})
+          version=$(jq -r '.version'  metadata.json 2>/dev/null || echo 0.0.0.0)
+
+          if [ -z "$version" ] || ! [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Version missing or invalid, defaulting to 1.0.0.0"
+            version=1.0.0.0
+          fi
+
           echo "solution=$solution" >> $GITHUB_OUTPUT
           echo "version=$version" >> $GITHUB_OUTPUT
+          echo "Resolved: solution=$solution version=$version"
 
-      - name: Create tag
+      - name: Create tag (if absent)
         run: |
-          git config user.name "github-actions"
-          git config user.email "actions@users.noreply.github.com"
-          git tag -a "v${{ steps.meta.outputs.version }}" -m "Release ${{ steps.meta.outputs.solution }} v${{ steps.meta.outputs.version }}"
-          git push origin "v${{ steps.meta.outputs.version }}"
+          set -euo pipefail
+            tag="v${{ steps.meta.outputs.version }}"
+          if git rev-parse -q --verify "refs/tags/$tag" >/dev/null; then
+            echo "Tag $tag already exists locally."
+          else
+            git tag -a "$tag" -m "Release ${{ steps.meta.outputs.solution }} v${{ steps.meta.outputs.version }}"
+          fi
+          # Check remote existence
+          if git ls-remote --tags origin | grep -q "refs/tags/$tag$"; then
+            echo "Tag $tag already exists on remote, skipping push."
+          else
+            git push origin "$tag"
+          fi
 
-      - name: Create gitHub release
+      - name: Create GitHub release
         uses: softprops/action-gh-release@v2
         with:
-            tag_name: v${{ steps.meta.outputs.version }}
-            name: "${{ steps.meta.outputs.solution }} v${{ steps.meta.outputs.version }}"
-            body: "Automated release from merged PR #${{ github.event.pull_request.number }}"
+          tag_name: v${{ steps.meta.outputs.version }}
+          name: "${{ steps.meta.outputs.solution }} v${{ steps.meta.outputs.version }}"
+          body: "Automated release from merged PR #${{ github.event.pull_request.number }}"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

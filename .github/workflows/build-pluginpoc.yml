@@ -3,8 +3,12 @@ name: Build Power Platform Plugin
 on:
   push:
     branches: [ main ]
+    paths:
+      - 'pluginpoc/**'
   pull_request:
     branches: [ main ]
+    paths:
+      - 'pluginpoc/**'
 
 jobs:
   build-and-deploy:

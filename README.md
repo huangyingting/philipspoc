@@ -233,6 +233,45 @@ Manual dispatch:
 - contents: write (for tags and releases)
 - pull-requests: read (to access PR metadata)
 
+
+## build-pluginpoc-cn
+
+Builds and deploys a Power Platform plugin package to the China (Mooncake) environment when code is pushed to or a PR targets main.
+
+```mermaid
+flowchart TD
+  T[push or PR to main]:::trig --> J
+
+  subgraph J[Job: build-and-deploy-cn]
+    A1[Checkout] --> A2[Setup .NET 8]
+    A2 --> A3[dotnet restore]
+    A3 --> A4[dotnet build]
+    A4 --> A5[List produced artifacts]
+    A5 --> A6[Upload artifact
+    plugin-build]
+    A6 --> A7[Install Power Platform Tools]
+    A7 --> A8[pac auth create]
+    A8 --> A9[pac plugin push
+    Nuget package]
+    A9 --> A10[pac auth clear]
+  end
+
+  classDef trig fill:#0366d6,stroke:#fff,color:#fff
+```
+
+Summary:
+- Triggers: push, pull_request (branch = main)
+- Builds: plugin project (Debug) -> .dll, .nupkg, .snupkg
+- Publishes: artifact plugin-build
+- Deploys: Uses pac plugin push with PLUGINPACKAGE_ID against POWERPLATFORM_URL (China cloud)
+- Secrets: POWERPLATFORM_URL, CLIENT_ID, CLIENT_SECRET, TENANT_ID, PLUGINPACKAGE_ID
+- Tooling: microsoft/powerplatform-actions + pac CLI
+- Cleanup: Clears authentication after deployment
+
+Outputs:
+- GitHub artifact: plugin-build
+- Updated / replaced plugin package in target environment
+
 ## Issues
 ### Web resources
 The official pac tool doesn’t yet have a native way to deploy web resources. But we can package them into a solution then use `pac solution import` to deploy.

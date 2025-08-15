@@ -234,6 +234,9 @@ Manual dispatch:
 - pull-requests: read (to access PR metadata)
 
 ## Issues
+### Web resources
+The official pac tool doesn’t yet have a native way to deploy web resources. But we can package them into a solution then use `pac solution import` to deploy.
+
 ### Plugin bootstrap
 Currently, a plugin has to be register from `Use the Plug-in Registration tool`, a GUI tool which could not be integrated into pipeline.
 

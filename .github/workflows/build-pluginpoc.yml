@@ -47,3 +47,32 @@ jobs:
           name: plugin-build
           path: pluginpoc/bin/${{ env.CONFIG }}/
           if-no-files-found: error
+
+      - name: Install Power Platform Tools
+        uses: microsoft/powerplatform-actions/actions-install@v1
+
+      - name: Authenticate & Deploy
+        shell: pwsh
+        run: |
+          # Discover build output directory
+          $outDir = Join-Path (Join-Path $PWD "pluginpoc") "bin\$env:CONFIG"
+          if (-not (Test-Path $outDir)) { Write-Error "Output directory not found: $outDir"; exit 1 }
+
+          # Find latest nupkg
+          $nupkg = Get-ChildItem $outDir -Filter *.nupkg -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+          if (-not $nupkg) { Write-Error "No .nupkg file found in $outDir"; exit 1 }
+
+          # Find plugin DLL (matching project name pattern)
+          $dll = Get-ChildItem $outDir -Filter pluginpoc*.dll -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+          if (-not $dll) { Write-Error "No plugin DLL (pluginpoc*.dll) found in $outDir"; exit 1 }
+
+          Write-Host "Discovered package: $($nupkg.Name)"
+          Write-Host "Discovered dll:     $($dll.Name)"
+
+          pac auth create -env ${{ secrets.POWERPLATFORM_URL }} -id ${{ secrets.CLIENT_ID }} -cs ${{ secrets.CLIENT_SECRET }} -t ${{ secrets.TENANT_ID }}
+
+          # Deploy using discovered nupkg
+          pac plugin push -id ${{ secrets.PLUGINPACKAGE_ID }} -env ${{ secrets.POWERPLATFORM_URL }} -pf $($nupkg.FullName) -t Nuget
+
+          pac auth clear
+

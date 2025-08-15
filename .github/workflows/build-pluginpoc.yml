@@ -9,6 +9,7 @@ on:
 jobs:
   build:
     runs-on: windows-latest
+    environment: philips-dev
     env:
       PROJECT_PATH: pluginpoc/pluginpoc.csproj
       CONFIG: Debug
@@ -38,6 +39,7 @@ jobs:
               Format-Table -AutoSize
           } else {
             Write-Host "No output directory found."
+          }
       
       - name: Upload build artifact
         uses: actions/upload-artifact@v4

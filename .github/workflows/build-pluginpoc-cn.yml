@@ -7,9 +7,9 @@ on:
     branches: [ main ]
 
 jobs:
-  build-and-deploy:
+  build-and-deploy-cn:
     runs-on: windows-latest
-    environment: philips-dev
+    environment: philips-dev-cn
     env:
       PROJECT_PATH: pluginpoc/pluginpoc.csproj
       CONFIG: Debug
@@ -71,7 +71,7 @@ jobs:
           Write-Host "Discovered package: $($nupkg.Name)"
           Write-Host "Discovered dll:     $($dll.Name)"
 
-          pac auth create -env ${{ secrets.POWERPLATFORM_URL }} -id ${{ secrets.CLIENT_ID }} -cs ${{ secrets.CLIENT_SECRET }} -t ${{ secrets.TENANT_ID }}
+          pac auth create -env ${{ secrets.POWERPLATFORM_URL }} -id ${{ secrets.CLIENT_ID }} -cs ${{ secrets.CLIENT_SECRET }} -t ${{ secrets.TENANT_ID }} -ci China
 
           # Deploy using discovered nupkg
           pac plugin push -id ${{ secrets.PLUGINPACKAGE_ID }} -env ${{ secrets.POWERPLATFORM_URL }} -pf $($nupkg.FullName) -t Nuget

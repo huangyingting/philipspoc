@@ -1,0 +1,47 @@
+name: Build Power Platform Plugin
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: windows-latest
+    env:
+      PROJECT_PATH: pluginpoc/pluginpoc.csproj
+      CONFIG: Debug
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET (for tooling)
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Restore
+        run: dotnet restore $env:PROJECT_PATH
+
+      - name: Build (generates nupkg & snupkg)
+        run: dotnet build $env:PROJECT_PATH -c $env:CONFIG --no-restore
+
+      - name: List produced artifacts
+        shell: pwsh
+        run: |
+          $out = Join-Path (Split-Path $env:PROJECT_PATH) "bin\$env:CONFIG"
+          Write-Host "Output directory: $out"
+          if (Test-Path $out) {
+            Get-ChildItem -Path $out -Recurse -Include *.dll,*.pdb,*.nupkg,*.snupkg |
+              Select-Object Name, FullName, Length |
+              Format-Table -AutoSize
+          } else {
+            Write-Host "No output directory found."
+      
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: plugin-build
+          path: pluginpoc/bin/${{ env.CONFIG }}/
+          if-no-files-found: error

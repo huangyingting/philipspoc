@@ -232,3 +232,20 @@ Manual dispatch:
 ### Permissions Required
 - contents: write (for tags and releases)
 - pull-requests: read (to access PR metadata)
+
+## Issues
+### Plugin bootstrap
+Currently, a plugin has to be register from `Use the Plug-in Registration tool`, a GUI tool which could not be integrated into pipeline.
+
+That means to bootstrap the plugin, you need to manually register it using the tool. Further automation can be done by using `pac plugin push`
+
+https://learn.microsoft.com/en-us/power-platform/developer/howto/cli-create-package
+https://dotnetdust.blogspot.com/2024/07/autoincrementing-and-deploying.html
+https://github.com/microsoft/powerplatform-build-tools/discussions/930
+https://crmminds.com/2024/09/15/dynamics-365-how-to-start-a-plugin-project-with-pac-cli/
+
+Assembly ID and plugin package ID are different
+
+`pac plugin push -id cbf137c3-7579-f011-b4cb-000d3a15898f -env https://philips-dev.crm.dynamics.com/ -pf pluginpoc.1.0.0.nupkg -t Nuget`
+
+`pac plugin push -id 499adfaa-7a79-f011-b4cb-000d3a15898f -env https://philips-dev.crm.dynamics.com/ -pf pluginpoc.dll -t Assembly`

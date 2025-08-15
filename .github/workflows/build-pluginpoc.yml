@@ -51,7 +51,7 @@ jobs:
       - name: Install Power Platform Tools
         uses: microsoft/powerplatform-actions/actions-install@v1
 
-      - name: Authenticate & Deploy
+      - name: Deploy
         shell: pwsh
         run: |
           # Discover build output directory
@@ -62,9 +62,9 @@ jobs:
           $nupkg = Get-ChildItem $outDir -Filter *.nupkg -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Descending | Select-Object -First 1
           if (-not $nupkg) { Write-Error "No .nupkg file found in $outDir"; exit 1 }
 
-          # Find plugin DLL (matching project name pattern)
-          $dll = Get-ChildItem $outDir -Filter pluginpoc*.dll -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Descending | Select-Object -First 1
-          if (-not $dll) { Write-Error "No plugin DLL (pluginpoc*.dll) found in $outDir"; exit 1 }
+          # Find plugin DLL recursively (matching project name pattern)
+          $dll = Get-ChildItem -Path $outDir -Recurse -Filter pluginpoc*.dll -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+          if (-not $dll) { Write-Error "No plugin DLL (pluginpoc*.dll) found under $outDir (searched recursively)"; exit 1 }
 
           Write-Host "Discovered package: $($nupkg.Name)"
           Write-Host "Discovered dll:     $($dll.Name)"
